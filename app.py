@@ -8,6 +8,11 @@ from config import DEFAULT_PROVIDER
 from database import init_db, get_prompt_override, save_prompt_override, delete_prompt_override, get_all_prompt_overrides
 from tracker import record_modification, confirm_rule, ignore_rule, defer_rule
 from document import parse_uploaded_file, filter_chinese_only, filter_english_only
+from term_annotator import (
+    load_terminology, get_all_domains, get_term_count, get_csv_path,
+    detect_domains, detect_domains_by_terms, annotate_text,
+    get_unique_terms, append_to_csv, DOMAIN_KEYWORDS,
+)
 from prompt_center import (
     STYLE_LABELS, STYLE_CONFIGS,
     get_default_prompt_text, get_effective_principles,
@@ -39,6 +44,25 @@ if "custom_prompt_text" not in st.session_state:
     st.session_state.custom_prompt_text = ""
 if "last_retrieval" not in st.session_state:
     st.session_state.last_retrieval = None
+# ── 术语标注 Session State ────────────────────────────
+if "term_input_text" not in st.session_state:
+    st.session_state.term_input_text = ""
+if "term_annotated_segments" not in st.session_state:
+    st.session_state.term_annotated_segments = []
+if "term_matched_csv" not in st.session_state:
+    st.session_state.term_matched_csv = []
+if "term_matched_user" not in st.session_state:
+    st.session_state.term_matched_user = []
+if "term_user_added" not in st.session_state:
+    st.session_state.term_user_added = []
+if "term_domain_label" not in st.session_state:
+    st.session_state.term_domain_label = ""
+if "term_best_domain" not in st.session_state:
+    st.session_state.term_best_domain = "全部领域"
+if "term_annotated" not in st.session_state:
+    st.session_state.term_annotated = False
+if "term_adding_mode" not in st.session_state:
+    st.session_state.term_adding_mode = False
 
 # ── 侧边栏 ────────────────────────────────────────────
 with st.sidebar:
@@ -68,7 +92,7 @@ with st.sidebar:
 # ── 主界面 ────────────────────────────────────────────
 st.title("🌐 翻译记忆学习系统")
 
-tab1, tab2, tab3, tab4 = st.tabs(["📄 文档翻译", "📁 我的文件", "📚 记忆库", "🎨 Prompt"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 文档翻译", "📁 我的文件", "📚 记忆库", "🎨 Prompt", "🔍 术语标注"])
 
 # ═══════════════════════════════════════════════════════
 #  Tab 1：文档翻译
@@ -492,6 +516,280 @@ with tab4:
             st.caption(f"**{label}** — 更新于 {o['updated_at']}")
     else:
         st.caption("暂无自定义提示词，所有领域使用默认设置。")
+
+# ═══════════════════════════════════════════════════════════════
+#  Tab 5：术语标注
+# ═══════════════════════════════════════════════════════════════
+with tab5:
+    st.subheader("🔍 术语自动标注")
+
+    # ── 术语库概况 ──
+    csv_path = get_csv_path()
+    terminology = load_terminology(csv_path)
+    all_term_domains = get_all_domains(csv_path)
+    total_terms = get_term_count(csv_path)
+
+    with st.expander("📊 术语库概况", expanded=False):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.metric("领域数", len(all_term_domains))
+        with col_b:
+            st.metric("术语总数", total_terms)
+        if all_term_domains:
+            domain_lines = ""
+            for d in all_term_domains:
+                cnt = len(terminology.get(d, []))
+                domain_lines += f"- **{d}**：{cnt} 条\n"
+            st.markdown(domain_lines)
+
+    # ── 图例 ──
+    st.caption("📋 图例：🔵 **青色高亮** = 术语库匹配 | 🔴 **红色高亮** = 用户补充")
+
+    # ── 文本输入区 ──
+    st.markdown("### 📝 输入文本")
+    user_input = st.text_area(
+        "请输入需要标注的文本（中英文均可）",
+        value=st.session_state.term_input_text,
+        height=180,
+        key="term_text_input",
+        placeholder="在此粘贴或输入文本...\n例如：患者出现发热和头痛症状，医生建议进行影像检查。The patient underwent surgery yesterday.",
+    )
+
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+
+    with col_btn1:
+        annotate_clicked = st.button("🔍 标注术语", type="primary", use_container_width=True)
+
+    with col_btn2:
+        clear_clicked = st.button("🔄 清空", use_container_width=True)
+
+    if clear_clicked:
+        st.session_state.term_input_text = ""
+        st.session_state.term_annotated_segments = []
+        st.session_state.term_matched_csv = []
+        st.session_state.term_matched_user = []
+        st.session_state.term_user_added = []
+        st.session_state.term_domain_label = ""
+        st.session_state.term_best_domain = "全部领域"
+        st.session_state.term_annotated = False
+        st.session_state.term_adding_mode = False
+        st.rerun()
+
+    # ── 标注逻辑 ──
+    if annotate_clicked and user_input.strip():
+        st.session_state.term_input_text = user_input
+        text = user_input.strip()
+
+        # 1. 领域检测（关键词 + 术语回退）
+        detected = detect_domains(text)
+        if not detected:
+            detected = detect_domains_by_terms(text, terminology)
+
+        # 2. 确定活跃术语
+        if not detected:
+            active_terms: list[tuple[str, str]] = []
+            for t_list in terminology.values():
+                active_terms.extend(t_list)
+            domain_label = "全部领域"
+            best_domain = "全部领域"
+        else:
+            active_domains = [d for d, _ in detected]
+            active_terms = []
+            for d in active_domains:
+                active_terms.extend(terminology.get(d, []))
+            best_domain = detected[0][0]
+            if len(detected) == 1:
+                domain_label = best_domain
+            else:
+                domain_label = "、".join(d for d, _ in detected)
+
+        # 3. 合并用户已添加的术语
+        merged_terms = list(active_terms)
+        for ch, en in st.session_state.term_user_added:
+            if (ch, en) not in merged_terms:
+                merged_terms.append((ch, en))
+
+        # 4. 标注
+        result = annotate_text(text, merged_terms)
+        st.session_state.term_annotated_segments = result["annotated_segments"]
+        st.session_state.term_matched_csv = result["matched_csv"]
+        st.session_state.term_matched_user = result["matched_user"]
+        st.session_state.term_domain_label = domain_label
+        st.session_state.term_best_domain = best_domain
+        st.session_state.term_annotated = True
+        st.session_state.term_adding_mode = False
+
+    # ── 标注结果展示 ──
+    if st.session_state.term_annotated and st.session_state.term_annotated_segments:
+        segments = st.session_state.term_annotated_segments
+        matched_csv = st.session_state.term_matched_csv
+        matched_user = st.session_state.term_matched_user
+        domain_label = st.session_state.term_domain_label
+
+        total_matches = len(matched_csv) + len(matched_user)
+        unique = get_unique_terms(matched_csv, matched_user)
+
+        st.divider()
+
+        # ── 领域标签 ──
+        detected = detect_domains(st.session_state.term_input_text)
+        if not detected:
+            detected = detect_domains_by_terms(st.session_state.term_input_text, terminology)
+        if detected:
+            tags_html = " ".join(
+                f'<span style="display:inline-block;background:#7c3aed;color:#fff;padding:2px 10px;border-radius:12px;font-size:13px;margin:2px;">{d} ({s}词)</span>'
+                for d, s in detected
+            )
+            st.markdown(f"**🏷️ 检测领域：** {tags_html}", unsafe_allow_html=True)
+        else:
+            st.info("🏷️ 检测领域：全部领域（未匹配到特定领域关键词）")
+
+        st.markdown(f"**📊 匹配统计：{total_matches} 处 / {len(unique)} 个术语** | 领域：{domain_label}")
+
+        # ── 高亮渲染文本 ──
+        st.markdown("### 📋 标注文本")
+        html_parts = ['<div style="background:#1e1e1e;padding:20px;border-radius:10px;line-height:2;font-size:15px;white-space:pre-wrap;word-wrap:break-word;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">']
+        for seg in segments:
+            if seg["is_match"]:
+                if seg.get("is_user"):
+                    # 红色：用户补充
+                    html_parts.append(
+                        f'<span style="background:#dc3545;color:#fff;padding:2px 6px;border-radius:4px;font-weight:bold;" '
+                        f'title="中文：{seg["chinese"]} | 英文：{seg["english"]}（用户补充）">'
+                        f'{seg["text"]}</span>'
+                    )
+                else:
+                    # 青色：术语库匹配
+                    html_parts.append(
+                        f'<span style="background:#17a2b8;color:#fff;padding:2px 6px;border-radius:4px;font-weight:bold;" '
+                        f'title="中文：{seg["chinese"]} | 英文：{seg["english"]}">'
+                        f'{seg["text"]}</span>'
+                    )
+            else:
+                html_parts.append(
+                    f'<span style="color:#e0e0e0;">{seg["text"]}</span>'
+                )
+        html_parts.append('</div>')
+        st.markdown("".join(html_parts), unsafe_allow_html=True)
+
+        # ── 术语对照表 ──
+        if unique:
+            st.markdown("### 📖 术语对照表")
+            import pandas as pd
+            table_data = []
+            for ch, en, is_user in unique:
+                source = "👤 用户补充" if is_user else "📚 术语库"
+                table_data.append({"中文术语": ch, "英文术语": en, "来源": source})
+            st.dataframe(
+                pd.DataFrame(table_data),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+        # ── CSV 导出 ──
+        if unique:
+            csv_buffer = io.StringIO(newline="")
+            writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL)
+            writer.writerow(["中文术语", "英文术语", "领域"])
+            for ch, en, _ in unique:
+                writer.writerow([ch, en, st.session_state.term_best_domain])
+            csv_bytes = csv_buffer.getvalue().encode("utf-8-sig")
+            import base64
+            st.markdown(
+                f'<a href="data:text/csv;charset=utf-8;base64,{base64.b64encode(csv_bytes).decode()}" '
+                f'download="terminology_export.csv" '
+                f'style="display:inline-block;padding:6px 16px;background:#17a2b8;color:#fff;text-decoration:none;border-radius:6px;font-size:14px;">'
+                f'📥 下载对照表 CSV</a>',
+                unsafe_allow_html=True,
+            )
+
+        # ── 补充遗漏术语 ──
+        st.divider()
+
+        if not st.session_state.term_adding_mode:
+            st.markdown("### ➕ 补充遗漏术语")
+            st.caption("发现有术语未被标注？点击下方按钮手动补充，新增术语将自动写入术语库 CSV。")
+            if st.button("➕ 添加遗漏术语", type="secondary"):
+                st.session_state.term_adding_mode = True
+                st.rerun()
+
+        if st.session_state.term_adding_mode:
+            st.markdown("### ✏️ 添加遗漏术语")
+            st.caption("格式：**中文术语 , 英文术语**（用英文逗号分隔）")
+            st.info(f"新增术语将归属到当前检测领域：**{st.session_state.term_best_domain}**")
+
+            col_new_ch, col_new_en = st.columns([1, 1])
+            with col_new_ch:
+                new_chinese = st.text_input("中文术语", key="new_term_ch", placeholder="例如：临床试验")
+            with col_new_en:
+                new_english = st.text_input("英文术语", key="new_term_en", placeholder="例如：clinical trial")
+
+            col_add, col_done, _ = st.columns([1, 1, 2])
+
+            with col_add:
+                if st.button("✅ 确认添加", type="primary", use_container_width=True):
+                    ch = new_chinese.strip()
+                    en = new_english.strip()
+                    if ch and en:
+                        # 校验前半为中文
+                        if not any('一' <= c <= '鿿' for c in ch):
+                            st.error("前半需为中文术语，格式：中文,英文")
+                        else:
+                            added = append_to_csv(ch, en, st.session_state.term_best_domain, csv_path)
+                            if added:
+                                st.success(f"✅ 已写入术语库：{ch} → {en}")
+                            else:
+                                st.info(f"术语已存在，跳过写入：{ch} → {en}")
+
+                            # 记录到本次用户添加列表
+                            if (ch, en) not in st.session_state.term_user_added:
+                                st.session_state.term_user_added.append((ch, en))
+
+                            # 刷新标注
+                            text = st.session_state.term_input_text.strip()
+                            detected2 = detect_domains(text)
+                            if not detected2:
+                                detected2 = detect_domains_by_terms(text, terminology)
+
+                            if not detected2:
+                                active_terms2: list[tuple[str, str]] = []
+                                for t_list in terminology.values():
+                                    active_terms2.extend(t_list)
+                            else:
+                                active_domains2 = [d for d, _ in detected2]
+                                active_terms2 = []
+                                for d in active_domains2:
+                                    active_terms2.extend(terminology.get(d, []))
+
+                            for ch_u, en_u in st.session_state.term_user_added:
+                                if (ch_u, en_u) not in active_terms2:
+                                    active_terms2.append((ch_u, en_u))
+
+                            result2 = annotate_text(text, active_terms2)
+                            st.session_state.term_annotated_segments = result2["annotated_segments"]
+                            st.session_state.term_matched_csv = result2["matched_csv"]
+                            st.session_state.term_matched_user = result2["matched_user"]
+                            st.rerun()
+                    else:
+                        st.error("中文术语和英文术语均不能为空")
+
+            with col_done:
+                if st.button("✔️ 完成添加", use_container_width=True):
+                    st.session_state.term_adding_mode = False
+                    st.rerun()
+
+            # 显示本轮已添加的术语
+            if st.session_state.term_user_added:
+                st.markdown("**本轮已添加：**")
+                added_html = " ".join(
+                    f'<span style="display:inline-block;background:#dc3545;color:#fff;padding:2px 8px;border-radius:10px;font-size:12px;margin:2px;">{ch} → {en}</span>'
+                    for ch, en in st.session_state.term_user_added
+                )
+                st.markdown(added_html, unsafe_allow_html=True)
+
+    else:
+        if not st.session_state.term_annotated:
+            st.info("👆 在上方输入文本，然后点击「标注术语」按钮开始分析。")
 
 # ── 规则发现弹窗（全局）──────────────────────────────
 if st.session_state.style_prompt:
