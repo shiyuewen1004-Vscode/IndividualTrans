@@ -186,7 +186,7 @@ with tab1:
             expander_label = "🔍 领域分析与术语匹配"
             if detected:
                 expander_label += f" · 检测到：{'、'.join(d for d, _ in detected[:3])}"
-            with st.expander(expander_label, expanded=False):
+            with st.expander(expander_label, expanded=True):
                 if detected:
                     st.markdown("**🎯 领域检测**")
                     cols_det = st.columns(len(detected))
@@ -224,6 +224,8 @@ with tab1:
                         translation, retrieval = translate(
                             seg["source_text"], provider=st.session_state.provider,
                             direction=st.session_state.doc_direction,
+                            domain=None if best_domain == "其他" else best_domain,
+                            matched_terms=matched_terms if matched_terms else None,
                         )
                         st.session_state.doc_translations[seg["sentence_id"]] = translation
                         if retrieval:
