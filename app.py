@@ -483,6 +483,22 @@ with tab3:
         )
         st.markdown(table_html, unsafe_allow_html=True)
 
+        # ── CSV 导出 ──
+        csv_buffer = io.StringIO(newline="")
+        writer = csv.writer(csv_buffer, quoting=csv.QUOTE_ALL)
+        writer.writerow(["中文", "英文", "领域"])
+        for a in assets:
+            writer.writerow([a["source_text"], a["target_text"], a["domain"]])
+        csv_bytes = csv_buffer.getvalue().encode("utf-8-sig")
+        import base64
+        st.markdown(
+            f'<a href="data:text/csv;charset=utf-8;base64,{base64.b64encode(csv_bytes).decode()}" '
+            f'download="terminology.csv" '
+            f'style="display:inline-block;padding:6px 16px;background:#4CAF50;color:#fff;'
+            f'text-decoration:none;border-radius:6px;font-size:14px;">📥 下载术语 CSV</a>',
+            unsafe_allow_html=True,
+        )
+
         # 批量删除
         st.divider()
         st.markdown("### 🗑 删除术语")
