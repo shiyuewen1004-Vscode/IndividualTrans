@@ -2,6 +2,7 @@
 
 import io
 import csv
+import re
 import streamlit as st
 from translator import translate, PROVIDER_LABELS, DIRECTION_LABELS
 from config import DEFAULT_PROVIDER
@@ -11,7 +12,7 @@ from document import parse_uploaded_file, filter_chinese_only, filter_english_on
 from term_manager import (
     detect_domains, load_terminology,
     get_terms_for_domain, match_terms,
-    build_domain_prompt, DOMAIN_KEYWORDS, DOMAIN_TONES,
+    build_domain_prompt, DOMAIN_KEYWORDS,
 )
 
 st.set_page_config(page_title="翻译记忆学习系统", page_icon="🌐", layout="wide")
@@ -36,8 +37,30 @@ if "app_domain" not in st.session_state:
     st.session_state.app_domain = "其他"
 if "last_retrieval" not in st.session_state:
     st.session_state.last_retrieval = None
-if "term_analysis_text" not in st.session_state:
-    st.session_state.term_analysis_text = ""
+
+# ── 文本切分工具 ────────────────────────────────────
+_SENTENCE_SPLITTER = re.compile(r"(?<=[。！？.!?])(?:\s+|\n|)(?=[^\s])")
+
+
+def _split_raw_text(text: str) -> list[dict]:
+    """将原始文本切分为句子段落，格式与 parse_uploaded_file 一致"""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if "\n\n" in text:
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    else:
+        paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
+
+    sentences = []
+    for para in paragraphs:
+        for part in _SENTENCE_SPLITTER.split(para):
+            s = part.strip()
+            if s:
+                sentences.append(s)
+
+    results = []
+    for i, sent in enumerate(sentences, 1):
+        results.append({"sentence_id": f"S{i}", "source_text": sent})
+    return results
 
 # ── 侧边栏 ────────────────────────────────────────────
 with st.sidebar:
@@ -53,28 +76,53 @@ with st.sidebar:
 # ── 主界面 ────────────────────────────────────────────
 st.title("🌐 翻译记忆学习系统")
 
-tab1, tab2, tab3, tab4 = st.tabs(["📄 文档翻译", "📁 我的文件", "📚 术语库", "🔬 领域术语"])
+tab1, tab2, tab3 = st.tabs(["🌐 智能翻译", "📁 我的文件", "📚 术语库"])
 
 # ═══════════════════════════════════════════════════════
-#  Tab 1：文档翻译
+#  Tab 1：智能翻译 — 文档解析 + 术语检测 + AI 翻译
 # ═══════════════════════════════════════════════════════
 with tab1:
-    uploaded_file = st.file_uploader(
-        "上传文档", type=["docx", "txt"],
-        help="支持 .docx 和 .txt 格式", key="doc_uploader",
+    # ── 输入模式选择 ──
+    input_mode = st.radio(
+        "选择输入方式",
+        options=["📄 上传文档", "📝 手动输入文本"],
+        horizontal=True,
+        key="input_mode",
     )
 
-    if uploaded_file is not None:
-        if st.button("🔍 解析文档", type="primary"):
-            with st.spinner("正在解析文档..."):
-                try:
-                    st.session_state.segments = parse_uploaded_file(uploaded_file)
-                    from database import add_file_history
-                    add_file_history(uploaded_file.name, len(st.session_state.segments))
-                    st.success(f"解析完成！共 {len(st.session_state.segments)} 个句子")
-                except Exception as e:
-                    st.error(f"解析失败：{e}")
-                    st.session_state.segments = []
+    if input_mode == "📄 上传文档":
+        uploaded_file = st.file_uploader(
+            "上传文档", type=["docx", "txt"],
+            help="支持 .docx 和 .txt 格式", key="doc_uploader",
+        )
+
+        if uploaded_file is not None:
+            if st.button("🔍 解析文档", type="primary"):
+                with st.spinner("正在解析文档..."):
+                    try:
+                        st.session_state.segments = parse_uploaded_file(uploaded_file)
+                        from database import add_file_history
+                        add_file_history(uploaded_file.name, len(st.session_state.segments))
+                        st.success(f"解析完成！共 {len(st.session_state.segments)} 个句子")
+                    except Exception as e:
+                        st.error(f"解析失败：{e}")
+                        st.session_state.segments = []
+    else:  # 手动输入文本
+        user_text = st.text_area(
+            "输入文本",
+            placeholder="在此粘贴需要翻译的中文或英文文本...",
+            height=200,
+            key="manual_text_input",
+        )
+        if user_text.strip():
+            if st.button("🔍 解析文本", type="primary"):
+                with st.spinner("正在解析文本..."):
+                    try:
+                        st.session_state.segments = _split_raw_text(user_text)
+                        st.success(f"解析完成！共 {len(st.session_state.segments)} 个句子")
+                    except Exception as e:
+                        st.error(f"解析失败：{e}")
+                        st.session_state.segments = []
 
     if st.session_state.segments:
         lang_filter = st.radio(
@@ -108,6 +156,64 @@ with tab1:
                 st.write(""); st.write("")
                 translate_all_clicked = st.button("🌐 翻译全部", type="primary", use_container_width=True)
 
+            # ── 领域分析与术语匹配（预翻译分析）──
+            analysis_text = "\n".join(seg["source_text"] for seg in st.session_state.segments)
+            detected = detect_domains(analysis_text, DOMAIN_KEYWORDS)
+
+            if not detected:
+                best_domain = "其他"
+                active_domains = list(DOMAIN_KEYWORDS.keys())
+            else:
+                best_domain = detected[0][0]
+                active_domains = [d for d, _ in detected]
+
+            terminology = load_terminology()
+            active_terms: list = []
+            for d in active_domains:
+                active_terms.extend(get_terms_for_domain(d, terminology))
+
+            matched_terms: list = []
+            if active_terms:
+                matched_terms, _ = match_terms(analysis_text, active_terms)
+
+            system_prompt_preview = build_domain_prompt(
+                text=analysis_text,
+                direction=st.session_state.doc_direction,
+                domain=best_domain if best_domain != "其他" else None,
+                matched_terms=matched_terms if matched_terms else None,
+            )
+
+            expander_label = "🔍 领域分析与术语匹配"
+            if detected:
+                expander_label += f" · 检测到：{'、'.join(d for d, _ in detected[:3])}"
+            with st.expander(expander_label, expanded=False):
+                if detected:
+                    st.markdown("**🎯 领域检测**")
+                    cols_det = st.columns(len(detected))
+                    for i, (domain, score) in enumerate(detected):
+                        with cols_det[i]:
+                            st.metric(f"🏷 {domain}", f"{score} 词匹配")
+                else:
+                    st.info("未能自动判断领域，将匹配全部术语库")
+
+                if matched_terms:
+                    st.markdown(f"**📋 匹配术语（共 {len(matched_terms)} 个）**")
+                    term_html = (
+                        "<table style='width:100%;border-collapse:collapse;font-size:13px;'>"
+                        "<tr style='background:#e0e0e0;'><th style='padding:6px;text-align:left;'>🇨🇳 中文</th><th style='padding:6px;text-align:left;'>🇬🇧 英文</th></tr>"
+                        + "".join(
+                            f"<tr style='border-bottom:1px solid #eee;'><td style='padding:6px;'>{ch}</td><td style='padding:6px;'>{en}</td></tr>"
+                            for ch, en in matched_terms
+                        )
+                        + "</table>"
+                    )
+                    st.markdown(term_html, unsafe_allow_html=True)
+                else:
+                    st.info("未匹配到术语")
+
+                st.markdown("**📝 系统 Prompt 预览**")
+                st.code(system_prompt_preview, language="markdown")
+
             if translate_all_clicked:
                 st.session_state.doc_translations = {}
                 st.session_state.last_retrieval = None
@@ -131,17 +237,17 @@ with tab1:
             if st.session_state.get("last_retrieval"):
                 r = st.session_state.last_retrieval
                 domain = r.get("domain", "未知")
-                matched_terms = r.get("matched_terms", [])
+                r_matched_terms = r.get("matched_terms", [])
                 with st.expander(
                     f"🔍 本次翻译使用 · 模型：{PROVIDER_LABELS[st.session_state.provider]} · "
                     f"领域：{domain} · "
                     f"术语库命中：{r['count']} · "
-                    f"术语匹配：{len(matched_terms)} 个",
+                    f"术语匹配：{len(r_matched_terms)} 个",
                     expanded=False,
                 ):
-                    if matched_terms:
+                    if r_matched_terms:
                         st.markdown("**📋 匹配术语**")
-                        for ch, en in matched_terms:
+                        for ch, en in r_matched_terms:
                             st.caption(f"{ch} → {en}")
                     st.markdown("**📖 TM 命中**")
                     for h in r["hits"]:
@@ -271,7 +377,7 @@ with tab1:
         else:
             st.warning("过滤后无匹配句子")
     else:
-        st.info("👆 请上传 .docx 或 .txt 文件，然后点击「解析文档」")
+        st.info("👆 请选择输入方式（上传文档或手动输入文本），然后点击解析按钮")
 
 # ═══════════════════════════════════════════════════════
 #  Tab 2：我的文件
@@ -520,139 +626,6 @@ with tab3:
                         delete_asset(delete_options[label])
                     st.success(f"已删除 {len(selected_labels)} 条术语")
                     st.rerun()
-
-# ═══════════════════════════════════════════════════════
-#  Tab 4：领域术语 — 领域检测 + 术语标注 + Prompt 预览
-# ═══════════════════════════════════════════════════════
-with tab4:
-    st.subheader("🔬 领域术语 — 自动检测 + 术语标注 + Prompt 生成")
-
-    # ── 输入模式选择 ──
-    input_mode = st.radio(
-        "选择输入方式",
-        options=["📝 手动输入文本", "📄 上传文档"],
-        horizontal=True,
-        key="term_input_mode",
-    )
-
-    if input_mode == "📝 手动输入文本":
-        user_text = st.text_area(
-            "输入文本进行领域检测和术语匹配",
-            placeholder="在此粘贴需要分析的中文或英文文本...",
-            height=150,
-            key="term_test_text",
-        )
-        if user_text.strip():
-            st.session_state.term_analysis_text = user_text
-    else:
-        uploaded_term_file = st.file_uploader(
-            "上传文档进行领域检测和术语匹配",
-            type=["docx", "txt"],
-            help="支持 .docx 和 .txt 格式，上传后自动解析文本内容",
-            key="term_doc_uploader",
-        )
-        if uploaded_term_file is not None:
-            with st.spinner("正在解析文档..."):
-                try:
-                    segments = parse_uploaded_file(uploaded_term_file)
-                    full_text = "\n".join(seg["source_text"] for seg in segments)
-                    st.session_state.term_analysis_text = full_text
-                    st.success(f"解析完成！共 {len(segments)} 个句子，{len(full_text)} 个字符")
-                except Exception as e:
-                    st.error(f"解析失败：{e}")
-
-    test_text = st.session_state.term_analysis_text
-
-    if test_text.strip():
-        # ── 领域检测 ──
-        detected = detect_domains(test_text, DOMAIN_KEYWORDS)
-
-        st.divider()
-        st.markdown("### 🎯 领域检测")
-
-        if not detected:
-            st.info("未能自动判断领域，将尝试匹配全部术语库")
-            best_domain = "其他"
-            active_domains = list(DOMAIN_KEYWORDS.keys())
-        else:
-            best_domain = detected[0][0]
-            active_domains = [d for d, _ in detected]
-
-            # 显示各领域得分
-            cols = st.columns(len(detected))
-            for i, (domain, score) in enumerate(detected):
-                with cols[i]:
-                    st.metric(f"🏷 {domain}", f"{score} 词匹配")
-
-        # ── 术语匹配 ──
-        terminology = load_terminology()
-        active_terms: list[tuple[str, str]] = []
-        for d in active_domains:
-            active_terms.extend(get_terms_for_domain(d, terminology))
-
-        if active_terms:
-            matched_terms, match_positions = match_terms(test_text, active_terms)
-
-            st.divider()
-            st.markdown(f"### 📋 术语匹配 — 共 {len(matched_terms)} 个术语")
-
-            if matched_terms:
-                # 术语对照表
-                term_table_html = (
-                    "<table style='width:100%;border-collapse:collapse;font-size:14px;'>"
-                    "<tr style='background:#e0e0e0;'><th style='padding:8px;text-align:left;'>🇨🇳 中文</th><th style='padding:8px;text-align:left;'>🇬🇧 英文</th></tr>"
-                    + "".join(
-                        f"<tr style='border-bottom:1px solid #eee;'><td style='padding:8px;'>{ch}</td><td style='padding:8px;'>{en}</td></tr>"
-                        for ch, en in matched_terms
-                    )
-                    + "</table>"
-                )
-                st.markdown(term_table_html, unsafe_allow_html=True)
-            else:
-                st.info("未匹配到术语，可尝试手动补充")
-        else:
-            matched_terms = []
-            st.info("术语库为空或未覆盖该领域")
-
-        # ── 系统 Prompt 预览 ──
-        st.divider()
-        st.markdown("### 📝 系统 Prompt 预览")
-        st.caption("以下是翻译时自动生成的 System Prompt 结构：")
-
-        system_prompt = build_domain_prompt(
-            text=test_text,
-            domain=best_domain if best_domain != "其他" else None,
-            matched_terms=matched_terms if matched_terms else None,
-        )
-
-        with st.expander("查看完整 Prompt", expanded=True):
-            st.code(system_prompt, language="markdown")
-
-    else:
-        st.info("👆 请选择输入方式：手动输入文本 或 上传文档 (.docx / .txt)，自动进行领域检测、术语匹配和 Prompt 生成")
-
-    # ── 术语库概况 ──
-    st.divider()
-    st.markdown("### 📊 术语库概况")
-
-    terminology = load_terminology()
-    if terminology:
-        total_terms = sum(len(v) for v in terminology.values())
-        cols = st.columns(len(terminology) + 1)
-        with cols[0]:
-            st.metric("📊 总术语", total_terms)
-        for i, (domain, terms) in enumerate(sorted(terminology.items())):
-            with cols[i + 1]:
-                st.metric(f"🏷 {domain}", len(terms))
-    else:
-        st.warning("未找到术语 CSV 文件，请检查 term_tool/terminology.csv 路径")
-
-    # ── 领域语调一览 ──
-    st.divider()
-    st.markdown("### 🎨 领域语调配置")
-
-    for domain, tone in DOMAIN_TONES.items():
-        st.markdown(f"- **{domain}**：{tone}")
 
 # ── 规则发现弹窗（全局）──────────────────────────────
 if st.session_state.style_prompt:
