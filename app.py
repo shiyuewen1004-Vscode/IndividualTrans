@@ -233,26 +233,6 @@ with tab1:
                     progress_bar.progress((i + 1) / total)
                 st.success(f"翻译完成！共 {total} 句")
 
-            # ── 检索结果展示 ────────────────────────────
-            if st.session_state.get("last_retrieval"):
-                r = st.session_state.last_retrieval
-                domain = r.get("domain", "未知")
-                r_matched_terms = r.get("matched_terms", [])
-                with st.expander(
-                    f"🔍 本次翻译使用 · 模型：{PROVIDER_LABELS[st.session_state.provider]} · "
-                    f"领域：{domain} · "
-                    f"术语库命中：{r['count']} · "
-                    f"术语匹配：{len(r_matched_terms)} 个",
-                    expanded=False,
-                ):
-                    if r_matched_terms:
-                        st.markdown("**📋 匹配术语**")
-                        for ch, en in r_matched_terms:
-                            st.caption(f"{ch} → {en}")
-                    st.markdown("**📖 TM 命中**")
-                    for h in r["hits"]:
-                        st.caption(f"{h['source_text']} → {h['target_text']}")
-
             # 修改模式切换
             if st.session_state.doc_translations:
                 col_tbl, col_edit, _ = st.columns([2, 1, 1])
