@@ -142,15 +142,11 @@ with tab1:
         if display_segments:
             st.markdown(f"**共 {len(display_segments)} 个句子**（全部 {len(st.session_state.segments)} 个）")
 
-            col_dir, col_dom, col_btn = st.columns([1, 1, 2])
+            col_dir, col_btn = st.columns([1, 2])
             with col_dir:
                 st.session_state.doc_direction = st.selectbox(
                     "翻译方向", options=list(DIRECTION_LABELS.keys()),
                     format_func=lambda k: DIRECTION_LABELS[k], key="doc_direction_selector",
-                )
-            with col_dom:
-                st.session_state.app_domain = st.selectbox(
-                    "Domain", options=["经济金融", "传统文化", "政治外交", "化学化工", "教育", "法律", "医学", "其他"], key="doc_domain",
                 )
             with col_btn:
                 st.write(""); st.write("")
@@ -224,7 +220,6 @@ with tab1:
                         translation, retrieval = translate(
                             seg["source_text"], provider=st.session_state.provider,
                             direction=st.session_state.doc_direction,
-                            domain=None if best_domain == "其他" else best_domain,
                             matched_terms=active_terms if active_terms else None,
                         )
                         st.session_state.doc_translations[seg["sentence_id"]] = translation
