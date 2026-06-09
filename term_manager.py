@@ -85,7 +85,9 @@ DEFAULT_CSV_PATH = os.path.join(
 
 def load_terminology(csv_path: str | None = None) -> dict[str, list[tuple[str, str]]]:
     """
-    从 CSV 加载术语表，按领域分组。
+    从 CSV + SQLite 数据库加载术语表，按领域分组。
+
+    优先读取 CSV 文件，再合并数据库中用户通过界面添加的术语（去重）。
 
     CSV 格式：中文术语,英文术语,领域
 
@@ -95,20 +97,38 @@ def load_terminology(csv_path: str | None = None) -> dict[str, list[tuple[str, s
     path = csv_path or DEFAULT_CSV_PATH
     terminology: dict[str, list[tuple[str, str]]] = {}
 
-    if not os.path.exists(path):
-        return terminology
+    # 1. 从 CSV 文件加载
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                chinese = row.get("中文术语", "").strip()
+                english = row.get("英文术语", "").strip()
+                domain = row.get("领域", "").strip()
+                if not chinese or not english:
+                    continue
+                if domain not in terminology:
+                    terminology[domain] = []
+                terminology[domain].append((chinese, english))
 
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            chinese = row.get("中文术语", "").strip()
-            english = row.get("英文术语", "").strip()
-            domain = row.get("领域", "").strip()
-            if not chinese or not english:
+    # 2. 从数据库 memory_assets 表加载（用户通过界面添加的术语）
+    try:
+        from database import get_all_assets
+        assets = get_all_assets(status="active")
+        for a in assets:
+            domain = a.get("domain", "其他")
+            source = a.get("source_text", "").strip()
+            target = a.get("target_text", "").strip()
+            if not source or not target:
                 continue
             if domain not in terminology:
                 terminology[domain] = []
-            terminology[domain].append((chinese, english))
+            entry = (source, target)
+            # 去重：避免与 CSV 中的条目重复
+            if entry not in terminology[domain]:
+                terminology[domain].append(entry)
+    except Exception:
+        pass  # 数据库未初始化或不可用时静默跳过
 
     return terminology
 
