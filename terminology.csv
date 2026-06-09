@@ -6,22 +6,19 @@
 药物,medication,医疗
 症状,symptom,医疗
 临床,clinical,医疗
-病理,pathology,医疗
-医生,doctor,医疗
-护士,nurse,医疗
-医院,hospital,医疗
-病房,ward,医疗
+发热,fever,医疗
+头痛,headache,医疗
 处方,prescription,医疗
 剂量,dosage,医疗
 副作用,side effect,医疗
 康复,rehabilitation,医疗
+病理,pathology,医疗
 影像,imaging,医疗
-检验,laboratory test,医疗
-体检,physical examination,医疗
-急诊,emergency,医疗
-发热,fever,医疗
-头痛,headache,医疗
-咳嗽,cough,医疗
+医生,doctor,医疗
+护士,nurse,医疗
+医院,hospital,医疗
+病房,ward,医疗
+急救,emergency treatment,医疗
 炎症,inflammation,医疗
 麻醉,anesthesia,医疗
 切除,resection,医疗
@@ -31,8 +28,80 @@
 肿瘤,tumor,医疗
 细胞,cell,医疗
 血液,blood,医疗
+体检,physical examination,医疗
+急诊,emergency,医疗
+咳嗽,cough,医疗
+检验,laboratory test,医疗
+免疫,immunity,医疗
+抗生素,antibiotic,医疗
+病毒,virus,医疗
+细菌,bacteria,医疗
+慢性病,chronic disease,医疗
+急性,acute,医疗
+恶性,malignant,医疗
+良性,benign,医疗
+化疗,chemotherapy,医疗
+放疗,radiotherapy,医疗
+预后,prognosis,医疗
+并发症,complication,医疗
+禁忌症,contraindication,医疗
+适应症,indication,医疗
+疗效,therapeutic effect,医疗
+临床试验,clinical trial,医疗
+病历,medical record,医疗
+医保,medical insurance,医疗
+门诊,outpatient,医疗
+住院,inpatient,医疗
+出院,discharge,医疗
+转诊,referral,医疗
+会诊,consultation,医疗
+活检,biopsy,医疗
+超声波,ultrasound,医疗
+CT,CT scan,医疗
+磁共振,MRI,医疗
+心电图,electrocardiogram,医疗
+血压,blood pressure,医疗
+血糖,blood glucose,医疗
+血脂,blood lipid,医疗
+心率,heart rate,医疗
+呼吸,respiration,医疗
+脉搏,pulse,医疗
+体温,body temperature,医疗
+内科,internal medicine,医疗
+外科,surgery department,医疗
+儿科,pediatrics,医疗
+妇产科,obstetrics and gynecology,医疗
+神经科,neurology,医疗
+心血管,cardiovascular,医疗
+消化科,gastroenterology,医疗
+泌尿科,urology,医疗
+骨科,orthopedics,医疗
+眼科,ophthalmology,医疗
+皮肤科,dermatology,医疗
+重症监护,intensive care unit,医疗
+疫苗接种,vaccination,医疗
+流行病,epidemic,医疗
+公共卫生,public health,医疗
+知情同意,informed consent,医疗
+随访,follow-up visit,医疗
+复发,recurrence,医疗
+缓解,remission,医疗
+病变,lesion,医疗
+水肿,edema,医疗
+出血,hemorrhage,医疗
+血栓,thrombus,医疗
+栓塞,embolism,医疗
+休克,shock,医疗
+过敏,allergy,医疗
+遗传,hereditary,医疗
+内分泌,endocrine,医疗
+代谢,metabolism,医疗
+营养,nutrition,医疗
+免疫系统,immune system,医疗
+潜伏期,incubation period,医疗
+发病率,incidence rate,医疗
+死亡率,mortality rate,医疗
 合同,contract,法律
-法律,law,法律
 诉讼,lawsuit,法律
 判决,judgment,法律
 仲裁,arbitration,法律
@@ -41,11 +110,13 @@
 原告,plaintiff,法律
 被告,defendant,法律
 法院,court,法律
-律师,lawyer,法律
 证据,evidence,法律
 上诉,appeal,法律
 赔偿,compensation,法律
 知识产权,intellectual property,法律
+履约能力,performance capability,法律
+价款支付,payment,法律
+律师,attorney,法律
 专利,patent,法律
 商标,trademark,法律
 法人,legal person,法律
@@ -54,15 +125,83 @@
 抵押,mortgage,法律
 担保,guarantee,法律
 管辖,jurisdiction,法律
-起诉,prosecution,法律
+起诉,prosecute,法律
 应诉,respond to lawsuit,法律
 调解,mediation,法律
 裁定,ruling,法律
-法条,legal provision,法律
 立法,legislation,法律
 司法,judicial,法律
 违法,illegal,法律
-合法,legal,法律
+合法,lawful,法律
+侵权,tort,法律
+损害赔偿,damages,法律
+合同解除,termination of contract,法律
+不可抗力,force majeure,法律
+保密协议,non-disclosure agreement,法律
+竞业限制,non-compete,法律
+劳动合同,labor contract,法律
+劳动关系,labor relations,法律
+解雇,dismissal,法律
+工伤,work-related injury,法律
+公司法,corporate law,法律
+股东,shareholder,法律
+董事会,board of directors,法律
+股权,equity,法律
+并购,merger and acquisition,法律
+破产,bankruptcy,法律
+清算,liquidation,法律
+重组,restructuring,法律
+尽职调查,due diligence,法律
+招投标,bidding,法律
+政府采购,government procurement,法律
+反垄断,antitrust,法律
+反倾销,anti-dumping,法律
+税法,tax law,法律
+避税,tax avoidance,法律
+逃税,tax evasion,法律
+偷税漏税,tax fraud,法律
+刑事,criminal,法律
+民事,civil,法律
+行政,administrative,法律
+宪法,constitution,法律
+刑法,criminal law,法律
+民法,civil law,法律
+行政法,administrative law,法律
+诉讼法,procedural law,法律
+举证责任,burden of proof,法律
+时效,statute of limitations,法律
+管辖权异议,jurisdictional objection,法律
+强制执行,enforcement,法律
+查封,seizure,法律
+冻结,freeze,法律
+扣押,detention,法律
+拍卖,auction,法律
+遗产,estate,法律
+继承,inheritance,法律
+遗嘱,will,法律
+信托,trust,法律
+公证,notarization,法律
+仲裁协议,arbitration agreement,法律
+仲裁裁决,arbitral award,法律
+送达,service of process,法律
+质证,cross-examination,法律
+鉴定,expert evaluation,法律
+刑事责任,criminal liability,法律
+民事责任,civil liability,法律
+连带责任,joint and several liability,法律
+免责,exemption from liability,法律
+违约金,liquidated damages,法律
+定金,deposit,法律
+格式条款,standard terms,法律
+消费者权益,consumer rights,法律
+隐私权,privacy right,法律
+肖像权,portrait right,法律
+名誉权,reputation right,法律
+物权,property right,法律
+著作权,copyright,法律
+商标权,trademark right,法律
+专利权,patent right,法律
+信息技术,information technology,信息技术
 服务器,server,信息技术
 数据库,database,信息技术
 算法,algorithm,信息技术
@@ -85,9 +224,83 @@
 缓存,cache,信息技术
 容器,container,信息技术
 微服务,microservice,信息技术
+DevOps,DevOps,信息技术
+Python,Python,信息技术
+Java,Java,信息技术
 数据,data,信息技术
 存储,storage,信息技术
 安全,security,信息技术
+大数据,big data,信息技术
+深度学习,deep learning,信息技术
+神经网络,neural network,信息技术
+自然语言处理,natural language processing,信息技术
+计算机视觉,computer vision,信息技术
+数据分析,data analysis,信息技术
+数据挖掘,data mining,信息技术
+可视化,visualization,信息技术
+敏捷开发,agile development,信息技术
+版本控制,version control,信息技术
+开源,open source,信息技术
+API网关,API gateway,信息技术
+负载均衡,load balancing,信息技术
+高可用,high availability,信息技术
+容灾,disaster recovery,信息技术
+备份,backup,信息技术
+加密,encryption,信息技术
+防火墙,firewall,信息技术
+漏洞,vulnerability,信息技术
+渗透测试,penetration testing,信息技术
+身份认证,authentication,信息技术
+授权,authorization,信息技术
+令牌,token,信息技术
+会话,session,信息技术
+中间件,middleware,信息技术
+消息队列,message queue,信息技术
+虚拟化,virtualization,信息技术
+容器编排,container orchestration,信息技术
+持续集成,continuous integration,信息技术
+持续部署,continuous deployment,信息技术
+监控,monitoring,信息技术
+日志,log,信息技术
+运维,operations,信息技术
+自动化,automation,信息技术
+脚本,script,信息技术
+命令行,command line,信息技术
+编译器,compiler,信息技术
+解释器,interpreter,信息技术
+协议,protocol,信息技术
+域名,domain name,信息技术
+DNS,DNS,信息技术
+HTTP,HTTP,信息技术
+HTTPS,HTTPS,信息技术
+TCP/IP,TCP/IP,信息技术
+物联网,Internet of Things,信息技术
+区块链,blockchain,信息技术
+边缘计算,edge computing,信息技术
+量子计算,quantum computing,信息技术
+敏捷,agile,信息技术
+重构,refactoring,信息技术
+测试,testing,信息技术
+单元测试,unit testing,信息技术
+集成测试,integration testing,信息技术
+回归测试,regression testing,信息技术
+性能优化,performance optimization,信息技术
+响应式,responsive,信息技术
+跨平台,cross-platform,信息技术
+开源协议,open source license,信息技术
+RESTful,RESTful API,信息技术
+微前端,micro frontend,信息技术
+服务网格,service mesh,信息技术
+无服务器,serverless,信息技术
+函数计算,function computing,信息技术
+数据湖,data lake,信息技术
+数据仓库,data warehouse,信息技术
+负载测试,load testing,信息技术
+冒烟测试,smoke testing,信息技术
+灰度发布,canary release,信息技术
+蓝绿部署,blue-green deployment,信息技术
+熔断器,circuit breaker,信息技术
+服务降级,service degradation,信息技术
 股票,stock,金融
 基金,fund,金融
 利率,interest rate,金融
@@ -103,7 +316,8 @@
 保险,insurance,金融
 信用卡,credit card,金融
 营收,revenue,金融
-市盈率,P/E ratio,金融
+市盈率,price-earnings ratio,金融
+K线,candlestick chart,金融
 牛市,bull market,金融
 熊市,bear market,金融
 通胀,inflation,金融
@@ -111,11 +325,79 @@
 央行,central bank,金融
 降息,interest rate cut,金融
 加息,interest rate hike,金融
-证券,securities,金融
+证券,security,金融
 期货,futures,金融
-期权,options,金融
-信托,trust,金融
+期权,option,金融
 风投,venture capital,金融
 融资,financing,金融
 上市,IPO,金融
 市值,market capitalization,金融
+债券,bond,金融
+国债,government bond,金融
+企业债,corporate bond,金融
+理财产品,wealth management product,金融
+信托产品,trust product,金融
+对冲基金,hedge fund,金融
+私募基金,private equity fund,金融
+公募基金,public fund,金融
+指数基金,index fund,金融
+ETF,ETF,金融
+股息,dividend yield,金融
+账面价值,book value,金融
+净资产,net asset,金融
+流动资产,current asset,金融
+固定资产,fixed asset,金融
+无形资产,intangible asset,金融
+折旧,depreciation,金融
+摊销,amortization,金融
+商誉,goodwill,金融
+损益表,income statement,金融
+资产负债表,balance sheet,金融
+现金流量表,cash flow statement,金融
+毛利,gross profit,金融
+净利,net profit,金融
+EBITDA,EBITDA,金融
+ROE,return on equity,金融
+ROA,return on assets,金融
+周转率,turnover rate,金融
+杠杆,leverage,金融
+流动性,liquidity,金融
+偿付能力,solvency,金融
+信用评级,credit rating,金融
+违约风险,default risk,金融
+系统性风险,systemic risk,金融
+对冲,hedging,金融
+套利,arbitrage,金融
+做空,short selling,金融
+做多,long position,金融
+止损,stop loss,金融
+止盈,take profit,金融
+仓位,position,金融
+持仓,holding,金融
+平仓,close position,金融
+建仓,open position,金融
+技术分析,technical analysis,金融
+基本面分析,fundamental analysis,金融
+量化交易,quantitative trading,金融
+高频交易,high-frequency trading,金融
+数字货币,digital currency,金融
+比特币,Bitcoin,金融
+稳定币,stablecoin,金融
+去中心化金融,DeFi,金融
+智能合约,smart contract,金融
+首次公开募股,initial public offering,金融
+二级市场,secondary market,金融
+一级市场,primary market,金融
+蓝筹股,blue chip stock,金融
+成长股,growth stock,金融
+价值股,value stock,金融
+派息,dividend distribution,金融
+除息,ex-dividend,金融
+股权激励,equity incentive,金融
+回购,share buyback,金融
+增发,seasoned equity offering,金融
+资本充足率,capital adequacy ratio,金融
+不良贷款,non-performing loan,金融
+贷款拨备,loan provision,金融
+存款准备金,required reserve,金融
+跨境支付,cross-border payment,金融
