@@ -225,7 +225,7 @@ with tab1:
                             seg["source_text"], provider=st.session_state.provider,
                             direction=st.session_state.doc_direction,
                             domain=None if best_domain == "其他" else best_domain,
-                            matched_terms=matched_terms if matched_terms else None,
+                            matched_terms=active_terms if active_terms else None,
                         )
                         st.session_state.doc_translations[seg["sentence_id"]] = translation
                         if retrieval:
