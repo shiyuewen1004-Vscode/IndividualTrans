@@ -36,6 +36,8 @@ if "app_domain" not in st.session_state:
     st.session_state.app_domain = "其他"
 if "last_retrieval" not in st.session_state:
     st.session_state.last_retrieval = None
+if "term_analysis_text" not in st.session_state:
+    st.session_state.term_analysis_text = ""
 
 # ── 侧边栏 ────────────────────────────────────────────
 with st.sidebar:
@@ -525,13 +527,41 @@ with tab3:
 with tab4:
     st.subheader("🔬 领域术语 — 自动检测 + 术语标注 + Prompt 生成")
 
-    # ── 输入测试文本 ──
-    test_text = st.text_area(
-        "输入文本进行领域检测和术语匹配",
-        placeholder="在此粘贴需要分析的中文或英文文本...",
-        height=150,
-        key="term_test_text",
+    # ── 输入模式选择 ──
+    input_mode = st.radio(
+        "选择输入方式",
+        options=["📝 手动输入文本", "📄 上传文档"],
+        horizontal=True,
+        key="term_input_mode",
     )
+
+    if input_mode == "📝 手动输入文本":
+        user_text = st.text_area(
+            "输入文本进行领域检测和术语匹配",
+            placeholder="在此粘贴需要分析的中文或英文文本...",
+            height=150,
+            key="term_test_text",
+        )
+        if user_text.strip():
+            st.session_state.term_analysis_text = user_text
+    else:
+        uploaded_term_file = st.file_uploader(
+            "上传文档进行领域检测和术语匹配",
+            type=["docx", "txt"],
+            help="支持 .docx 和 .txt 格式，上传后自动解析文本内容",
+            key="term_doc_uploader",
+        )
+        if uploaded_term_file is not None:
+            with st.spinner("正在解析文档..."):
+                try:
+                    segments = parse_uploaded_file(uploaded_term_file)
+                    full_text = "\n".join(seg["source_text"] for seg in segments)
+                    st.session_state.term_analysis_text = full_text
+                    st.success(f"解析完成！共 {len(segments)} 个句子，{len(full_text)} 个字符")
+                except Exception as e:
+                    st.error(f"解析失败：{e}")
+
+    test_text = st.session_state.term_analysis_text
 
     if test_text.strip():
         # ── 领域检测 ──
@@ -599,7 +629,7 @@ with tab4:
             st.code(system_prompt, language="markdown")
 
     else:
-        st.info("👆 在上方输入文本，自动进行领域检测、术语匹配和 Prompt 生成")
+        st.info("👆 请选择输入方式：手动输入文本 或 上传文档 (.docx / .txt)，自动进行领域检测、术语匹配和 Prompt 生成")
 
     # ── 术语库概况 ──
     st.divider()
