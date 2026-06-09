@@ -1,6 +1,7 @@
-"""翻译服务模块 - 支持 OpenAI、DeepSeek、Gemini 多翻译引擎，双向翻译
+"""翻译服务模块 - 支持 OpenAI、DeepSeek、Gemini 多翻译引擎，领域感知翻译
+
 翻译流程：
-    Style Config → Terminology Prompt → Memory Retrieval → Prompt Builder → API → Translation
+    领域检测 → CSV 术语匹配 → Prompt Builder（领域+术语+TM）→ API → Translation
 """
 
 from openai import OpenAI
@@ -10,8 +11,8 @@ from config import (
     GEMINI_API_KEY, GEMINI_MODEL,
 )
 from prompt_builder import build_prompt_context
-from terminology import build_terminology_prompt
 from retriever import retrieve
+from term_manager import detect_best_domain, load_terminology, get_terms_for_domain, match_terms
 
 # ── 翻译方向标签 ──────────────────────────────────
 
@@ -112,47 +113,50 @@ def translate(
     direction: str = "en2zh",
     prompt_template: str = "default",
     custom_prompt: str = "",
-) -> tuple[str, str]:
-    """统一翻译入口（Prompt Builder 中心组装）
+) -> tuple[str, dict]:
+    """领域感知翻译入口
 
-    流程：Style Config → Terminology → Memory Retrieval → Prompt Builder → API → Translation
+    流程：领域检测 → CSV 术语匹配 → Prompt Builder → API → Translation
 
     Args:
         text: 待翻译文本
         provider: 翻译引擎，可选 openai / deepseek / gemini
         direction: 翻译方向，zh2en（中→英）或 en2zh（英→中）
-        prompt_template: 模板名 default / political / financial / legal / custom
-        custom_prompt: 自定义模板内容（仅 custom 模式生效）
+        prompt_template: 保留兼容（不再使用，领域由 term_manager 自动检测）
+        custom_prompt: 保留兼容（不再使用）
 
     Returns:
-        (translation, memory_context) — 译文 + 检索摘要
+        (translation, retrieval_result) — 译文 + 检索摘要
+        retrieval_result 中附加了 domain 和 matched_terms 字段
     """
     if not text.strip():
-        return "", ""
+        return "", {}
 
     translator = TRANSLATORS.get(provider)
     if translator is None:
         raise ValueError(f"不支持的翻译引擎: {provider}，可选: {list(TRANSLATORS.keys())}")
 
-    # 1. Terminology → 强制术语统一（术语表为空时自动跳过）
-    terminology_prompt = build_terminology_prompt()
-
-    # 2. Memory Retrieval → 从记忆库检索相关资产
+    # 1. Memory Retrieval → 从数据库检索相关句对
     retrieval_result = retrieve(text)
     tm_hits = retrieval_result.get("hits") if retrieval_result else None
 
-    # 3. Prompt Builder → 将各模块结果组装成最终 System Prompt
-    extra_principles = None
-    if prompt_template == "custom" and custom_prompt.strip():
-        extra_principles = [custom_prompt.strip()]
-
+    # 2. Prompt Builder → 领域检测 + 术语匹配 + 组装 System Prompt
     system_prompt = build_prompt_context(
         source_text=text,
-        template_name=prompt_template,
-        terminology_prompt=terminology_prompt,
         tm_hits=tm_hits,
-        extra_principles=extra_principles,
     )
+
+    # 3. 提取领域和术语信息（用于 UI 展示）
+    domain = detect_best_domain(text)
+    terminology = load_terminology()
+    domain_terms = get_terms_for_domain(domain, terminology)
+    matched_terms, _ = match_terms(text, domain_terms) if domain_terms else ([], [])
+
+    # 注入到 retrieval_result 中
+    if retrieval_result is None:
+        retrieval_result = {}
+    retrieval_result["domain"] = domain
+    retrieval_result["matched_terms"] = matched_terms
 
     # 4. API → 调用翻译引擎
     translation = translator(text, system_prompt)
