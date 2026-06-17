@@ -5,7 +5,53 @@ import csv
 import os
 import streamlit as st
 from translator import translate, PROVIDER_LABELS, DIRECTION_LABELS
-from config import DEFAULT_PROVIDER, save_env_var, get_env_file_path, mask_key, API_KEY_VARS
+from config import DEFAULT_PROVIDER
+
+# ── 兼容性导入：若 config.py 尚未更新，提供 fallback ──
+try:
+    from config import save_env_var, get_env_file_path, mask_key, API_KEY_VARS
+except ImportError:
+    import os as _os
+
+    def save_env_var(key: str, value: str) -> str:
+        """Fallback: 写入项目 .env 文件"""
+        env_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".env")
+        lines: list[str] = []
+        found = False
+        if _os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} ="):
+                        lines.append(f"{key}={value}\n")
+                        found = True
+                    else:
+                        lines.append(line)
+            if not found:
+                lines.append(f"{key}={value}\n")
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+        else:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write(f"{key}={value}\n")
+        _os.environ[key] = value
+        return env_path
+
+    def get_env_file_path() -> str:
+        return _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".env")
+
+    def mask_key(key: str) -> str:
+        if not key:
+            return "（未配置）"
+        if len(key) <= 8:
+            return key[:2] + "****"
+        return key[:4] + "****" + key[-4:]
+
+    API_KEY_VARS = {
+        "OPENAI_API_KEY": "OpenAI",
+        "DEEPSEEK_API_KEY": "DeepSeek",
+        "GEMINI_API_KEY": "Gemini",
+    }
 from database import init_db, get_prompt_override, save_prompt_override, delete_prompt_override, get_all_prompt_overrides
 from tracker import record_modification, confirm_rule, ignore_rule, defer_rule
 from document import parse_uploaded_file, filter_chinese_only, filter_english_only
