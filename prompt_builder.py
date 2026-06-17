@@ -1,78 +1,66 @@
-"""Prompt Builder — 领域感知的 System Prompt 组装器
+"""Prompt Builder — 将各模块结果组装成最终 System Prompt"""
 
-基于 term_manager 的领域检测 + CSV 术语匹配，构建结构化的翻译 System Prompt。
-
-组装结构：
-    Role:           {领域}翻译专家
-    Context:        源语言 / 目标语言 / 语调
-    Terminology:    {从 CSV 术语库匹配到的术语表}
-    Translation Memory: {TM 检索结果，可选}
-    Instruction:    翻译指令
-"""
-
-from typing import Optional
-
-from retriever import retrieve
-from term_manager import (
-    build_domain_prompt,
-    detect_best_domain,
-    load_terminology,
-    get_terms_for_domain,
-    match_terms,
-    get_domain_tone,
-)
+from prompt_center import STYLE_CONFIGS, get_effective_principles
 
 
 def build_prompt_context(
-    source_text: str,
+    source_text: str = "",
     template_name: str = "default",
     terminology_prompt: str = "",
-    tm_hits: Optional[list[dict]] = None,
-    style_examples: Optional[str] = None,
-    extra_principles: Optional[list[str]] = None,
+    tm_hits: list[dict] | None = None,
+    extra_principles: list[str] | None = None,
 ) -> str:
     """
-    构建领域感知的 System Prompt（兼容旧接口）。
-
-    流程：
-        1. 自动检测领域
-        2. 加载 CSV 术语库，匹配文本中的术语
-        3. 组装 Role + Context + Terminology + TM + Instruction
+    将 Style Config + Terminology + TM Hits + Extra Principles 组装成
+    最终送给翻译模型的 System Prompt。
 
     Args:
-        source_text:         待翻译的原文
-        template_name:       保留兼容（不再使用旧的风格模板，由领域自动决定语调）
-        terminology_prompt:  保留兼容（不再使用，术语由 CSV 自动匹配）
-        tm_hits:             retriever.retrieve() 返回的 hits 列表
-        style_examples:      保留兼容（暂未使用）
-        extra_principles:    额外的翻译原则
+        source_text: 待翻译文本（用于上下文）
+        template_name: 模板名（default / financial / legal 等）
+        terminology_prompt: build_terminology_prompt() 的输出
+        tm_hits: 检索到的翻译记忆命中列表
+        extra_principles: 额外的翻译原则（如自定义 prompt）
 
     Returns:
-        结构化 System Prompt 字符串
+        组装好的 System Prompt 字符串
     """
-    # 使用 term_manager 构建领域感知 prompt
-    return build_domain_prompt(
-        text=source_text,
-        tm_hits=tm_hits,
-    )
+    config = STYLE_CONFIGS.get(template_name, STYLE_CONFIGS["default"])
+    principles = get_effective_principles(template_name)
 
+    # 如果调用方传入了额外原则，合并进去
+    if extra_principles:
+        principles = list(principles) + list(extra_principles)
 
-def build_system_prompt(source_text: str, base_prompt: str = "") -> tuple[str, dict]:
-    """
-    以 base_prompt 为基础，叠加术语库和 TM 检索。
+    parts: list[str] = []
 
-    兼容旧接口。
+    # ── 角色 ──────────────────────────────────────────
+    style_name = config.get("style_name", template_name)
+    parts.append(f"You are a professional {style_name} translator.")
 
-    Returns:
-        (system_prompt, retrieval_result)
-    """
-    result = retrieve(source_text)
+    # ── 受众 ──────────────────────────────────────────
+    audience = config.get("audience", "Professional Readers")
+    if audience:
+        parts.append(f"Target audience: {audience}")
 
-    system_prompt = build_prompt_context(
-        source_text=source_text,
-        tm_hits=result.get("hits") if result else None,
-    )
+    # ── 翻译原则 ──────────────────────────────────────
+    if principles:
+        lines = ["## Translation Principles"]
+        for i, p in enumerate(principles, 1):
+            lines.append(f"{i}. {p}")
+        parts.append("\n".join(lines))
 
-    system_prompt += "\n\n---\nTranslate the following text according to the above specifications."
+    # ── 术语表（强制统一）─────────────────────────────
+    if terminology_prompt.strip():
+        parts.append(terminology_prompt.strip())
 
-    return system_prompt, result
+    # ── 翻译记忆参考 ──────────────────────────────────
+    if tm_hits:
+        lines = ["## Reference Translations (for style guidance only)"]
+        for h in tm_hits[:5]:
+            lines.append(f"- {h['source_text']} → {h['target_text']}")
+        parts.append("\n".join(lines))
+
+    # ── 指令 ──────────────────────────────────────────
+    parts.append("Translate the following text accurately and naturally.")
+
+    return "\n\n".join(parts)
